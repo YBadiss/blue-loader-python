@@ -18,6 +18,11 @@
 """
 
 import argparse
+import ssl
+
+
+REQUEST_CTX = ssl.create_default_context()
+
 
 def get_argparser():
 	parser = argparse.ArgumentParser("Update the firmware by using Ledger to open a Secure Channel.")
@@ -28,6 +33,7 @@ Issuer keypair used by Ledger to sign the device's Issuer Certificate""", defaul
 	parser.add_argument("--firmware", help="A reference to the firmware to load")
 	parser.add_argument("--targetId", help="The device's target ID (default is Ledger Blue)", type=auto_int)
 	parser.add_argument("--firmwareKey", help="A reference to the firmware key to use")
+	parser.add_argument("--noCertVerify", help="Don't verify the cert of the target host", action="store_true", default=False)
 	return parser
 
 def auto_int(x):
@@ -37,7 +43,7 @@ def serverQuery(request, url):
 	data = request.SerializeToString()
 	urll = urlparse.urlparse(args.url)
 	req = urllib2.Request(args.url, data, {"Content-type": "application/octet-stream" })
-	res = urllib2.urlopen(req)
+	res = urllib2.urlopen(req, context=REQUEST_CTX)
 	data = res.read()
 	response = Response()
 	response.ParseFromString(data)
@@ -53,7 +59,7 @@ if __name__ == '__main__':
 		import urllib.request as urllib2
 		import urllib.parse as urlparse
 	else:
-		import urllib2, urlparse	
+		import urllib2, urlparse
 	from .BlueHSMServer_pb2 import Request, Response, Parameter
 	from .comm import getDongle
 	import sys
@@ -69,6 +75,9 @@ if __name__ == '__main__':
 		raise Exception("No firmware key specified")
 	if args.targetId == None:
 		args.targetId = 0x31000002 # Ledger Blue by default
+	if args.noCertVerify:
+		REQUEST_CTX.check_hostname = False
+		REQUEST_CTX.verify_mode = ssl.CERT_NONE
 
 	dongle = getDongle(args.apdu)
 
@@ -122,7 +131,7 @@ if __name__ == '__main__':
 	parameter.local = False
 	parameter.alias = "persoKey"
 	parameter.name = args.perso
-	request.parameters = bytes(deviceNonce)	
+	request.parameters = bytes(deviceNonce)
 	request.largeStack = True
 
 	response = serverQuery(request, args.url)
@@ -168,7 +177,7 @@ if __name__ == '__main__':
 		parameter = request.remote_parameters.add()
 		parameter.local = False
 		parameter.alias = "scpv2"
-		parameter.name = "dummy"	
+		parameter.name = "dummy"
 	request.id = response.id
 	request.largeStack = True
 
