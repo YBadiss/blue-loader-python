@@ -18,6 +18,11 @@
 """
 
 import argparse
+import ssl
+
+
+REQUEST_CTX = ssl.create_default_context()
+
 
 def get_argparser():
 	parser = argparse.ArgumentParser(description="""Generate an attestation keypair, using Ledger to sign the Owner
@@ -30,6 +35,7 @@ Issuer keypair used by Ledger to sign the device's Issuer Certificate""", defaul
 specific Owner keypair to be used by Ledger to sign the Owner Certificate""", default="attest_1")
 	parser.add_argument("--targetId", help="The device's target ID (default is Ledger Blue)", type=auto_int)
 	parser.add_argument("--key", help="Which endorsement scheme to use (1 or 2)", type=auto_int)
+	parser.add_argument("--noCertVerify", help="Don't verify the cert of the target host", action="store_true", default=False)
 	return parser
 
 def auto_int(x):
@@ -39,7 +45,7 @@ def serverQuery(request, url):
 	data = request.SerializeToString()
 	urll = urlparse.urlparse(args.url)
 	req = urllib2.Request(args.url, data, {"Content-type": "application/octet-stream" })
-	res = urllib2.urlopen(req)
+	res = urllib2.urlopen(req, context=REQUEST_CTX)
 	data = res.read()
 	response = Response()
 	response.ParseFromString(data)
@@ -71,6 +77,9 @@ if __name__ == '__main__':
 			raise Exception("Invalid endorsement scheme number")
 	if args.targetId == None:
 		args.targetId = 0x31000002 # Ledger Blue by default
+	if args.noCertVerify:
+		REQUEST_CTX.check_hostname = False
+		REQUEST_CTX.verify_mode = ssl.CERT_NONE
 
 	dongle = getDongle(args.apdu)
 
